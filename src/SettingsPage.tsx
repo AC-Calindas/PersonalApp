@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "./api";
-import type { AppSettings } from "./App";
+import type { AppSettings } from "./types";
 
 interface SettingsPageProps {
   settings: AppSettings;

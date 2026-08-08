@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AppSettings } from "./App";
+import type { AppSettings } from "./types";
 
 interface BacklogItem {
   id: string;
   title: string;
   description: string;
-  category: "read" | "games" | "projects";
+  category: "reading" | "gaming" | "projects";
   tags?: string[];
   completed: boolean;
 }
@@ -64,7 +64,7 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newCategory, setNewCategory] = useState<BacklogItem["category"]>("reading");
-  const [filter, setFilter] = useState<"all" | "reading" | "gaming" | "completed" | "ongoing">("all");
+  const [filter, setFilter] = useState<"all" | "reading" | "gaming" | "completed" | "open">("all");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -363,7 +363,7 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
         ) : (
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
             <div>
-              <div className="library-card-badge">{item.category === "reading" ? "Reading" : "Gaming"}</div>
+              <div className="library-card-badge">{item.category === "reading" ? "Reading" : item.category === "gaming" ? "Gaming" : "Projects"}</div>
               <strong>{item.title}</strong>
               <p className="muted" style={{ margin: "6px 0 0" }}>{item.description}</p>
               <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>

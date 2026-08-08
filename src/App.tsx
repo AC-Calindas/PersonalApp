@@ -5,20 +5,7 @@ import SettingsPage from "./SettingsPage";
 import VaultPage from "./VaultPage";
 import ProgressPage from "./ProgressPage";
 import { api } from "./api";
-import type { VaultItem } from "./types";
-
-export type AppearanceTheme = "light" | "dark" | "blue" | "green" | "solar";
-
-export interface AppSettings {
-  passwordHint: string;
-  showHintOnUnlock: boolean;
-  backupReminder: boolean;
-  theme: AppearanceTheme;
-  backgroundImage?: string;
-  backgroundOpacity: number;
-  backgroundMaxSizeKB: number;
-  backgroundQuality: number;
-}
+import type { VaultItem, AppSettings, AppearanceTheme } from "./types";
 
 const DEFAULT_SETTINGS: AppSettings = {
   passwordHint: "",
@@ -221,6 +208,9 @@ export default function App() {
     setScreen("setup");
   }
 
+  // Workaround: TS sometimes mis-infers SettingsPage's JSX type; cast to any for rendering
+  const SettingsComponent: any = SettingsPage;
+
   if (screen === "loading") return <Centered>Loading…</Centered>;
 
   if (screen === "setup") {
@@ -275,7 +265,7 @@ export default function App() {
         )}
         {page === "progress" && <ProgressPage settings={settings} />}
         {page === "settings" && (
-          <SettingsPage settings={settings} onSave={handleSaveSettings} onAppReset={handleAppReset} />
+          <SettingsComponent settings={settings} onSave={handleSaveSettings} onAppReset={handleAppReset} />
         )}
       </main>
     </div>

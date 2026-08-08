@@ -92,6 +92,8 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
   const [selectedNewTags, setSelectedNewTags] = useState<string[]>([]);
   const [editSelectedTags, setEditSelectedTags] = useState<string[]>([]);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [showFilters, setShowFilters] = useState<boolean>(false);
 
   
 
@@ -140,9 +142,14 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
   }, [backlog, filter, readingItems, gamingItems]);
 
   const filteredItemsWithTags = useMemo(() => {
-    if (!tagFilter) return filteredItems;
-    return filteredItems.filter((item) => (item.tags || []).includes(tagFilter));
-  }, [filteredItems, tagFilter]);
+    let items = filteredItems;
+    if (tagFilter) items = items.filter((item) => (item.tags || []).includes(tagFilter));
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      items = items.filter((item) => (item.title || "").toLowerCase().includes(q) || (item.description || "").toLowerCase().includes(q));
+    }
+    return items;
+  }, [filteredItems, tagFilter, searchQuery]);
 
   function saveBacklog(items: BacklogItem[]) {
     setBacklog(items);
@@ -399,7 +406,21 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
           <p className="muted">Track your reading and gaming progress together in one place.</p>
         </div>
       </div>
-      <div className="filter-bar">
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}>
+        <input
+          className="field"
+          placeholder="Search title or description..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ flex: 1, minWidth: 200 }}
+        />
+        <button className="secondary" onClick={() => setSearchQuery("")}>Clear</button>
+        <button className="secondary" onClick={() => setShowFilters(!showFilters)} style={{ minWidth: 120 }}>
+          {showFilters ? 'Hide filters' : 'Show filters'}
+        </button>
+      </div>
+      {showFilters && (
+        <div className="filter-bar">
         {([
           { value: "all", label: "All" },
           { value: "reading", label: "Books" },
@@ -433,7 +454,8 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
             {td.name}
           </button>
         ))}
-      </div>
+        </div>
+      )}
 
       <div className="card-actions" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
         <ProgressBar label="Reading progress" value={readingCompleted} max={readingItems.length} accent="#4f46e5" />

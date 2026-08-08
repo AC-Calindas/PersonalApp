@@ -210,6 +210,7 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
     setNewTitle("");
     setNewDescription("");
     setSelectedNewTags([]);
+    setShowQuickAdd(false);
   }
 
   function startEdit(item: BacklogItem) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppSettings } from "./App";
 
 interface BacklogItem {
@@ -75,6 +75,7 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
   });
   const [tagEditing, setTagEditing] = useState<string | null>(null);
   const [tagEditValue, setTagEditValue] = useState<string>("");
+  const newTitleRef = useRef<HTMLInputElement | null>(null);
   const [newTagInput, setNewTagInput] = useState("");
   const [selectedNewTags, setSelectedNewTags] = useState<string[]>([]);
   const [editSelectedTags, setEditSelectedTags] = useState<string[]>([]);
@@ -162,6 +163,25 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
     setTags(tags.filter((t) => t !== todel));
     saveBacklog(
       backlog.map((item) => ({ ...item, tags: (item.tags || []).filter((tt) => tt !== todel) }))
+    );
+  }
+
+  function focusNewItemInput() {
+    newTitleRef.current?.focus();
+  }
+
+  function handleAddTagToItem(itemId: string) {
+    const t = window.prompt("Enter tag to add to this item:");
+    if (!t) return;
+    const tag = t.trim();
+    if (!tag) return;
+    if (!tags.includes(tag)) setTags([tag, ...tags]);
+    saveBacklog(
+      backlog.map((it) =>
+        it.id === itemId
+          ? { ...it, tags: Array.from(new Set([...(it.tags || []), tag])) }
+          : it
+      )
     );
   }
 
@@ -317,6 +337,9 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
               <button className="secondary" onClick={() => toggleCompleted(item.id)}>
                 {item.completed ? "Mark undone" : "Mark done"}
               </button>
+              <button className="secondary" onClick={() => handleAddTagToItem(item.id)}>
+                Add tag
+              </button>
               <button className="secondary" onClick={() => startEdit(item)}>
                 Edit
               </button>
@@ -383,6 +406,7 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
         <h2>Quick add backlog item</h2>
         <div style={{ display: "grid", gap: 12 }}>
           <input
+            ref={newTitleRef}
             className="field"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
@@ -452,7 +476,10 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
       </div>
 
       <div className="card" style={{ marginTop: 20, padding: 20 }}>
-        <h2>Backlog library</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>Backlog library</h2>
+          <button className="secondary" onClick={focusNewItemInput}>Add item</button>
+        </div>
         {filteredItemsWithTags.length === 0 ? (
           <p className="muted">No backlog items match this filter. Try another view or add a new item.</p>
         ) : (

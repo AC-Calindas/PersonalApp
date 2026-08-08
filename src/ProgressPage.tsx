@@ -73,6 +73,8 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
       return [];
     }
   });
+  const [tagEditing, setTagEditing] = useState<string | null>(null);
+  const [tagEditValue, setTagEditValue] = useState<string>("");
   const [newTagInput, setNewTagInput] = useState("");
   const [selectedNewTags, setSelectedNewTags] = useState<string[]>([]);
   const [editSelectedTags, setEditSelectedTags] = useState<string[]>([]);
@@ -119,6 +121,48 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
 
   function saveBacklog(items: BacklogItem[]) {
     setBacklog(items);
+  }
+
+  function startTagEdit(t: string) {
+    setTagEditing(t);
+    setTagEditValue(t);
+  }
+
+  function cancelTagEdit() {
+    setTagEditing(null);
+    setTagEditValue("");
+  }
+
+  function saveTagEdit() {
+    if (!tagEditing) return;
+    const newTag = tagEditValue.trim();
+    if (!newTag) return;
+    if (newTag === tagEditing) {
+      cancelTagEdit();
+      return;
+    }
+    if (tags.includes(newTag)) {
+      // avoid duplicate names
+      cancelTagEdit();
+      return;
+    }
+    // replace tag name in tags list
+    setTags(tags.map((t) => (t === tagEditing ? newTag : t)));
+    // update backlog items to replace tag
+    saveBacklog(
+      backlog.map((item) => ({
+        ...item,
+        tags: (item.tags || []).map((tt) => (tt === tagEditing ? newTag : tt))
+      }))
+    );
+    cancelTagEdit();
+  }
+
+  function deleteTag(todel: string) {
+    setTags(tags.filter((t) => t !== todel));
+    saveBacklog(
+      backlog.map((item) => ({ ...item, tags: (item.tags || []).filter((tt) => tt !== todel) }))
+    );
   }
 
   function toggleCompleted(id: string) {
@@ -374,17 +418,32 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
               {tags.map((t) => {
                 const selected = selectedNewTags.includes(t);
                 return (
-                  <button
-                    key={t}
-                    className={`secondary ${selected ? 'selected' : ''}`}
-                    onClick={() => {
-                      if (selected) setSelectedNewTags(selectedNewTags.filter(x => x !== t));
-                      else setSelectedNewTags([...(selectedNewTags || []), t]);
-                    }}
-                    style={{ marginRight: 6, marginBottom: 6 }}
-                  >
-                    {t}
-                  </button>
+                  <div key={t} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginRight: 6, marginBottom: 6 }}>
+                    <button
+                      className={`secondary ${selected ? 'selected' : ''}`}
+                      onClick={() => {
+                        if (selected) setSelectedNewTags(selectedNewTags.filter(x => x !== t));
+                        else setSelectedNewTags([...(selectedNewTags || []), t]);
+                      }}
+                    >
+                      {t}
+                    </button>
+                    {tagEditing === t ? (
+                      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                        <input className="field" value={tagEditValue} onChange={(e) => setTagEditValue(e.target.value)} style={{ width: 120 }} />
+                        <button className="secondary" onClick={saveTagEdit}>Save</button>
+                        <button className="secondary" onClick={cancelTagEdit}>Cancel</button>
+                      </span>
+                    ) : (
+                      <span style={{ display: 'inline-flex', gap: 6 }}>
+                        <button className="secondary" onClick={() => startTagEdit(t)} title="Rename tag">✎</button>
+                        <button className="danger" onClick={() => {
+                          if (!confirm(`Delete tag '${t}' from all items?`)) return;
+                          deleteTag(t);
+                        }} title="Delete tag">🗑</button>
+                      </span>
+                    )}
+                  </div>
                 );
               })}
             </div>

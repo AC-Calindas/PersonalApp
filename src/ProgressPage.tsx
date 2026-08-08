@@ -76,6 +76,7 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
   const [tagEditing, setTagEditing] = useState<string | null>(null);
   const [tagEditValue, setTagEditValue] = useState<string>("");
   const newTitleRef = useRef<HTMLInputElement | null>(null);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [newTagInput, setNewTagInput] = useState("");
   const [selectedNewTags, setSelectedNewTags] = useState<string[]>([]);
   const [editSelectedTags, setEditSelectedTags] = useState<string[]>([]);
@@ -167,7 +168,9 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
   }
 
   function focusNewItemInput() {
-    newTitleRef.current?.focus();
+    setShowQuickAdd(true);
+    // wait for the input to render then focus
+    setTimeout(() => newTitleRef.current?.focus(), 0);
   }
 
   function handleAddTagToItem(itemId: string) {
@@ -402,78 +405,80 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
         <ProgressBar label="Combined daily progress" value={combinedCompleted} max={combinedTotal} accent="#f59e0b" />
       </div>
 
-      <div className="card" style={{ marginTop: 20, padding: 20 }}>
-        <h2>Quick add backlog item</h2>
-        <div style={{ display: "grid", gap: 12 }}>
-          <input
-            ref={newTitleRef}
-            className="field"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="Title"
-          />
-          <textarea
-            className="field"
-            value={newDescription}
-            onChange={(e) => setNewDescription(e.target.value)}
-            placeholder="Description"
-          />
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <select className="field" value={newCategory} onChange={(e) => setNewCategory(e.target.value as BacklogItem["category"])}>
-              <option value="reading">Reading</option>
-              <option value="projects">Projects</option>
-              <option value="gaming">Gaming</option>
-            </select>
-            <button className="secondary" style={{ minWidth: 120 }} onClick={addBacklogItem}>
-              Add item
-            </button>
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-              <input className="field" placeholder="New tag" value={newTagInput} onChange={(e) => setNewTagInput(e.target.value)} style={{ width: 160 }} />
-              <button className="secondary" onClick={() => {
-                const t = newTagInput.trim();
-                if (!t) return;
-                if (!tags.includes(t)) setTags([t, ...tags]);
-                setNewTagInput("");
-              }}>Add tag</button>
+      {showQuickAdd && (
+        <div className="card" style={{ marginTop: 20, padding: 20 }}>
+          <h2>Quick add backlog item</h2>
+          <div style={{ display: "grid", gap: 12 }}>
+            <input
+              ref={newTitleRef}
+              className="field"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Title"
+            />
+            <textarea
+              className="field"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              placeholder="Description"
+            />
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <select className="field" value={newCategory} onChange={(e) => setNewCategory(e.target.value as BacklogItem["category"])}>
+                <option value="reading">Reading</option>
+                <option value="projects">Projects</option>
+                <option value="gaming">Gaming</option>
+              </select>
+              <button className="secondary" style={{ minWidth: 120 }} onClick={addBacklogItem}>
+                Add item
+              </button>
             </div>
-            <div className="tag-list">
-              {tags.map((t) => {
-                const selected = selectedNewTags.includes(t);
-                return (
-                  <div key={t} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginRight: 6, marginBottom: 6 }}>
-                    <button
-                      className={`secondary ${selected ? 'selected' : ''}`}
-                      onClick={() => {
-                        if (selected) setSelectedNewTags(selectedNewTags.filter(x => x !== t));
-                        else setSelectedNewTags([...(selectedNewTags || []), t]);
-                      }}
-                    >
-                      {t}
-                    </button>
-                    {tagEditing === t ? (
-                      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                        <input className="field" value={tagEditValue} onChange={(e) => setTagEditValue(e.target.value)} style={{ width: 120 }} />
-                        <button className="secondary" onClick={saveTagEdit}>Save</button>
-                        <button className="secondary" onClick={cancelTagEdit}>Cancel</button>
-                      </span>
-                    ) : (
-                      <span style={{ display: 'inline-flex', gap: 6 }}>
-                        <button className="secondary" onClick={() => startTagEdit(t)} title="Rename tag">✎</button>
-                        <button className="danger" onClick={() => {
-                          if (!confirm(`Delete tag '${t}' from all items?`)) return;
-                          deleteTag(t);
-                        }} title="Delete tag">🗑</button>
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                <input className="field" placeholder="New tag" value={newTagInput} onChange={(e) => setNewTagInput(e.target.value)} style={{ width: 160 }} />
+                <button className="secondary" onClick={() => {
+                  const t = newTagInput.trim();
+                  if (!t) return;
+                  if (!tags.includes(t)) setTags([t, ...tags]);
+                  setNewTagInput("");
+                }}>Add tag</button>
+              </div>
+              <div className="tag-list">
+                {tags.map((t) => {
+                  const selected = selectedNewTags.includes(t);
+                  return (
+                    <div key={t} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginRight: 6, marginBottom: 6 }}>
+                      <button
+                        className={`secondary ${selected ? 'selected' : ''}`}
+                        onClick={() => {
+                          if (selected) setSelectedNewTags(selectedNewTags.filter(x => x !== t));
+                          else setSelectedNewTags([...(selectedNewTags || []), t]);
+                        }}
+                      >
+                        {t}
+                      </button>
+                      {tagEditing === t ? (
+                        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                          <input className="field" value={tagEditValue} onChange={(e) => setTagEditValue(e.target.value)} style={{ width: 120 }} />
+                          <button className="secondary" onClick={saveTagEdit}>Save</button>
+                          <button className="secondary" onClick={cancelTagEdit}>Cancel</button>
+                        </span>
+                      ) : (
+                        <span style={{ display: 'inline-flex', gap: 6 }}>
+                          <button className="secondary" onClick={() => startTagEdit(t)} title="Rename tag">✎</button>
+                          <button className="danger" onClick={() => {
+                            if (!confirm(`Delete tag '${t}' from all items?`)) return;
+                            deleteTag(t);
+                          }} title="Delete tag">🗑</button>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="card" style={{ marginTop: 20, padding: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

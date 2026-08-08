@@ -5,9 +5,14 @@ interface BacklogItem {
   id: string;
   title: string;
   description: string;
-  category: "reading" | "gaming" | "projects";
+  category: "read" | "games" | "projects";
   tags?: string[];
   completed: boolean;
+}
+
+interface TagDef {
+  name: string;
+  color?: string;
 }
 
 const DEFAULT_BACKLOG: BacklogItem[] = [];
@@ -59,16 +64,22 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newCategory, setNewCategory] = useState<BacklogItem["category"]>("reading");
-  const [filter, setFilter] = useState<"all" | "reading" | "gaming" | "completed" | "open">("all");
+  const [filter, setFilter] = useState<"all" | "reading" | "gaming" | "completed" | "ongoing">("all");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editCategory, setEditCategory] = useState<BacklogItem["category"]>("reading");
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [tags, setTags] = useState<string[]>(() => {
+  const [tags, setTags] = useState<TagDef[]>(() => {
     try {
       const stored = window.localStorage.getItem("unifiedBacklogTags");
-      return stored ? JSON.parse(stored) : [];
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      // migration: if stored as array of strings, convert to TagDef with generated color
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "string") {
+        return parsed.map((n: string) => ({ name: n, color: colorForTag(n) }));
+      }
+      return parsed as TagDef[];
     } catch {
       return [];
     }
@@ -91,6 +102,18 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
   useEffect(() => {
     window.localStorage.setItem("unifiedBacklogTags", JSON.stringify(tags));
   }, [tags]);
+
+  function colorForTag(name: string) {
+    let sum = 0;
+    for (let i = 0; i < name.length; i++) sum = (sum * 31 + name.charCodeAt(i)) >>> 0;
+    const h = sum % 360;
+    return `hsl(${h} 70% 45%)`;
+  }
+
+  function tagTextColor(bg: string) {
+    // crude: return white for now
+    return "#fff";
+  }
 
   const readingItems = useMemo(() => backlog.filter((item) => item.category === "reading"), [backlog]);
   const gamingItems = useMemo(() => backlog.filter((item) => item.category === "gaming"), [backlog]);
@@ -143,13 +166,13 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
       cancelTagEdit();
       return;
     }
-    if (tags.includes(newTag)) {
+    if (tags.some((tg) => tg.name === newTag)) {
       // avoid duplicate names
       cancelTagEdit();
       return;
     }
     // replace tag name in tags list
-    setTags(tags.map((t) => (t === tagEditing ? newTag : t)));
+    setTags(tags.map((td) => (td.name === tagEditing ? { ...td, name: newTag, color: td.color ?? colorForTag(newTag) } : td)));
     // update backlog items to replace tag
     saveBacklog(
       backlog.map((item) => ({
@@ -157,14 +180,21 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
         tags: (item.tags || []).map((tt) => (tt === tagEditing ? newTag : tt))
       }))
     );
+    // update selected tag arrays and active filter
+    setSelectedNewTags(selectedNewTags.map((s) => (s === tagEditing ? newTag : s)));
+    setEditSelectedTags(editSelectedTags.map((s) => (s === tagEditing ? newTag : s)));
+    if (tagFilter === tagEditing) setTagFilter(newTag);
     cancelTagEdit();
   }
 
   function deleteTag(todel: string) {
-    setTags(tags.filter((t) => t !== todel));
+    setTags(tags.filter((td) => td.name !== todel));
     saveBacklog(
       backlog.map((item) => ({ ...item, tags: (item.tags || []).filter((tt) => tt !== todel) }))
     );
+    setSelectedNewTags(selectedNewTags.filter((s) => s !== todel));
+    setEditSelectedTags(editSelectedTags.filter((s) => s !== todel));
+    if (tagFilter === todel) setTagFilter(null);
   }
 
   function focusNewItemInput() {
@@ -178,7 +208,7 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
     if (!t) return;
     const tag = t.trim();
     if (!tag) return;
-    if (!tags.includes(tag)) setTags([tag, ...tags]);
+    if (!tags.some((td) => td.name === tag)) setTags([{ name: tag, color: colorForTag(tag) }, ...tags]);
     saveBacklog(
       backlog.map((it) =>
         it.id === itemId
@@ -298,18 +328,19 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
                 <option value="gaming">Gaming</option>
               </select>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                {tags.map((t) => {
-                  const sel = editSelectedTags.includes(t);
+                {tags.map((td) => {
+                  const sel = editSelectedTags.includes(td.name);
                   return (
                     <button
-                      key={t}
+                      key={td.name}
                       className={`secondary ${sel ? 'selected' : ''}`}
                       onClick={() => {
-                        if (sel) setEditSelectedTags(editSelectedTags.filter(x => x !== t));
-                        else setEditSelectedTags([...(editSelectedTags || []), t]);
+                        if (sel) setEditSelectedTags(editSelectedTags.filter(x => x !== td.name));
+                        else setEditSelectedTags([...(editSelectedTags || []), td.name]);
                       }}
+                      style={{ background: td.color, color: tagTextColor(td.color || '') }}
                     >
-                      {t}
+                      {td.name}
                     </button>
                   );
                 })}
@@ -329,12 +360,15 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
               <strong>{item.title}</strong>
               <p className="muted" style={{ margin: "6px 0 0" }}>{item.description}</p>
               <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {(item.tags || []).map((t) => (
-                  <span key={t} className="tag-chip">{t}</span>
-                ))}
+                {(item.tags || []).map((t) => {
+                  const td = tags.find((x) => x.name === t);
+                  return (
+                    <span key={t} className="tag-chip" style={{ background: td?.color, color: tagTextColor(td?.color || "") }}>{t}</span>
+                  );
+                })}
               </div>
               <div style={{ marginTop: 8, fontSize: 13, color: "var(--muted-text, #666)" }}>
-                {item.completed ? "Completed" : "Open"}
+                {item.completed ? "Completed" : "Ongoing"}
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 130 }}>
@@ -361,17 +395,17 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Unified Backlog</h1>
+          <h1>Archives</h1>
           <p className="muted">Track your reading and gaming progress together in one place.</p>
         </div>
       </div>
       <div className="filter-bar">
         {([
           { value: "all", label: "All" },
-          { value: "reading", label: "Reading" },
-          { value: "gaming", label: "Gaming" },
+          { value: "reading", label: "Books" },
+          { value: "gaming", label: "Games" },
           { value: "completed", label: "Completed" },
-          { value: "open", label: "Open" }
+          { value: "open", label: "Ongoing" }
         ] as const).map((option) => (
           <button
             key={option.value}
@@ -389,13 +423,14 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
         >
           All
         </button>
-        {tags.map((t) => (
+        {tags.map((td) => (
           <button
-            key={t}
-            className={`secondary ${tagFilter === t ? 'active-filter' : ''}`}
-            onClick={() => setTagFilter(tagFilter === t ? null : t)}
+            key={td.name}
+            className={`secondary ${tagFilter === td.name ? 'active-filter' : ''}`}
+            onClick={() => setTagFilter(tagFilter === td.name ? null : td.name)}
+            style={{ background: td.color, color: tagTextColor(td.color || '') }}
           >
-            {t}
+            {td.name}
           </button>
         ))}
       </div>
@@ -425,9 +460,9 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
             />
             <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <select className="field" value={newCategory} onChange={(e) => setNewCategory(e.target.value as BacklogItem["category"])}>
-                <option value="reading">Reading</option>
+                <option value="reading">Books</option>
                 <option value="projects">Projects</option>
-                <option value="gaming">Gaming</option>
+                <option value="gaming">Games</option>
               </select>
               <button className="secondary" style={{ minWidth: 120 }} onClick={addBacklogItem}>
                 Add item
@@ -439,25 +474,26 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
                 <button className="secondary" onClick={() => {
                   const t = newTagInput.trim();
                   if (!t) return;
-                  if (!tags.includes(t)) setTags([t, ...tags]);
+                  if (!tags.some((td) => td.name === t)) setTags([{ name: t, color: colorForTag(t) }, ...tags]);
                   setNewTagInput("");
                 }}>Add tag</button>
               </div>
               <div className="tag-list">
-                {tags.map((t) => {
-                  const selected = selectedNewTags.includes(t);
+                {tags.map((td) => {
+                  const selected = selectedNewTags.includes(td.name);
                   return (
-                    <div key={t} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginRight: 6, marginBottom: 6 }}>
+                    <div key={td.name} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginRight: 6, marginBottom: 6 }}>
                       <button
                         className={`secondary ${selected ? 'selected' : ''}`}
                         onClick={() => {
-                          if (selected) setSelectedNewTags(selectedNewTags.filter(x => x !== t));
-                          else setSelectedNewTags([...(selectedNewTags || []), t]);
+                          if (selected) setSelectedNewTags(selectedNewTags.filter(x => x !== td.name));
+                          else setSelectedNewTags([...(selectedNewTags || []), td.name]);
                         }}
+                        style={{ background: td.color, color: tagTextColor(td.color || '') }}
                       >
-                        {t}
+                        {td.name}
                       </button>
-                      {tagEditing === t ? (
+                      {tagEditing === td.name ? (
                         <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                           <input className="field" value={tagEditValue} onChange={(e) => setTagEditValue(e.target.value)} style={{ width: 120 }} />
                           <button className="secondary" onClick={saveTagEdit}>Save</button>
@@ -465,10 +501,10 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
                         </span>
                       ) : (
                         <span style={{ display: 'inline-flex', gap: 6 }}>
-                          <button className="secondary" onClick={() => startTagEdit(t)} title="Rename tag">✎</button>
+                          <button className="secondary" onClick={() => startTagEdit(td.name)} title="Rename tag">✎</button>
                           <button className="danger" onClick={() => {
-                            if (!confirm(`Delete tag '${t}' from all items?`)) return;
-                            deleteTag(t);
+                            if (!confirm(`Delete tag '${td.name}' from all items?`)) return;
+                            deleteTag(td.name);
                           }} title="Delete tag">🗑</button>
                         </span>
                       )}
@@ -483,7 +519,7 @@ export default function ProgressPage({ settings }: ProgressPageProps) {
 
       <div className="card" style={{ marginTop: 20, padding: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2>Backlog library</h2>
+          <h2>Library</h2>
           <button className="secondary" onClick={focusNewItemInput}>Add item</button>
         </div>
         {filteredItemsWithTags.length === 0 ? (

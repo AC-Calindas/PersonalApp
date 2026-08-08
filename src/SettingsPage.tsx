@@ -128,6 +128,74 @@ export default function SettingsPage({ settings, onSave, onAppReset }: SettingsP
     }
   }
 
+  async function handleCreateFullBackup() {
+    setErrorMessage("");
+    setStatusMessage("");
+    try {
+      // get backend vault backup (stringified JSON or archive)
+      const vaultBackup = await api.vault.backup();
+
+      const settingsRaw = window.localStorage.getItem("vaultSettings");
+      const backlogRaw = window.localStorage.getItem("unifiedBacklog");
+      const tagsRaw = window.localStorage.getItem("unifiedBacklogTags");
+
+      const payload = {
+        meta: { createdAt: new Date().toISOString(), app: "PersonalApp" },
+        vault: vaultBackup,
+        settings: settingsRaw ? JSON.parse(settingsRaw) : null,
+        backlog: backlogRaw ? JSON.parse(backlogRaw) : [],
+        backlogTags: tagsRaw ? JSON.parse(tagsRaw) : []
+      };
+
+      const filename = `personalapp-backup-${new Date().toISOString().slice(0,10)}.json`;
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      setStatusMessage(`Backup created: ${filename}`);
+    } catch (e) {
+      setErrorMessage("Failed to create backup.");
+    }
+  }
+
+  async function handleRestoreFromFile(file: File | null) {
+    setErrorMessage("");
+    setStatusMessage("");
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const obj = JSON.parse(text);
+
+      if (obj.settings) {
+        window.localStorage.setItem("vaultSettings", JSON.stringify(obj.settings));
+      }
+      if (obj.backlog) {
+        window.localStorage.setItem("unifiedBacklog", JSON.stringify(obj.backlog));
+      }
+      if (obj.backlogTags) {
+        window.localStorage.setItem("unifiedBacklogTags", JSON.stringify(obj.backlogTags));
+      }
+
+      if (obj.vault) {
+        const res = await api.vault.restore(obj.vault);
+        if (!res || !(res as any).ok) {
+          setErrorMessage("Vault restore failed on the backend.");
+          return;
+        }
+      }
+
+      setStatusMessage("Restore completed. Please lock and unlock the app to refresh state, or reload the window.");
+    } catch (e) {
+      setErrorMessage("Failed to restore backup: invalid file or restore error.");
+    }
+  }
+
   return (
     <div className="page">
       <h1>Settings</h1>
@@ -437,6 +505,46 @@ export default function SettingsPage({ settings, onSave, onAppReset }: SettingsP
               )}
             </div>
           )}
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>Backup & Restore</h2>
+        <div className="card">
+          <label>
+            <strong>Full backup</strong>
+            <p className="muted">Create a single JSON backup containing the encrypted vault plus local settings and backlog. Keep this file safe.</p>
+          </label>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <button className="secondary" onClick={handleCreateFullBackup}>Create full backup</button>
+            <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span className="muted">Restore from file</span>
+              <input
+                className="field"
+                type="file"
+                accept="application/json"
+                onChange={(e) => {
+                  const f = e.target.files && e.target.files[0];
+                  if (!f) return;
+                  void handleRestoreFromFile(f);
+                }}
+              />
+            </label>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <em className="muted">After restore, lock and unlock or reload the app to apply restored data.</em>
+            <div style={{ marginTop: 8 }}>
+              <button
+                className="secondary"
+                onClick={() => {
+                  setStatusMessage("");
+                  window.location.reload();
+                }}
+              >
+                Reload now
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 

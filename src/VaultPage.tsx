@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from "react";
+import { useState } from "react";
 import { api } from "./api";
 import type { VaultItem } from "./types";
 
@@ -21,13 +21,13 @@ export default function VaultPage({ items, onRefresh, onRestoreSuccess }: VaultP
   const isEditingExisting = editingId !== null;
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [restoreInputKey, setRestoreInputKey] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [showData, setShowData] = useState(false);
 
   // ---------- navigation ----------
 
   function openItem(item: VaultItem) {
     setSelectedId(item.id);
+    setShowData(false);
     setMode("detail");
   }
 
@@ -86,57 +86,7 @@ export default function VaultPage({ items, onRefresh, onRestoreSuccess }: VaultP
     backToGrid();
   }
 
-  async function handleBackup() {
-    setErrorMessage("");
-    setStatusMessage("");
-
-    const confirmed = window.confirm(
-      "Backup will export your current vault state to a file. Continue?"
-    );
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      const backupJson = await api.vault.backup();
-      const blob = new Blob([backupJson], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = "vault-backup.json";
-      anchor.click();
-      URL.revokeObjectURL(url);
-      setStatusMessage("Backup saved successfully.");
-    } catch (error) {
-      setErrorMessage("Failed to save backup.");
-    }
-  }
-
-  async function handleRestoreFile(event: ChangeEvent<HTMLInputElement>) {
-    setErrorMessage("");
-    setStatusMessage("");
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const confirmed = window.confirm(
-      "Restoring a backup will overwrite your current vault data. Continue?"
-    );
-    if (!confirmed) {
-      setRestoreInputKey((current) => current + 1);
-      return;
-    }
-
-    try {
-      const text = await file.text();
-      await api.vault.restore(text);
-      setStatusMessage("Vault restored. Please unlock again.");
-      onRestoreSuccess?.();
-    } catch (error) {
-      setErrorMessage("Failed to restore vault. Check the file and try again.");
-    } finally {
-      setRestoreInputKey((current) => current + 1);
-    }
-  }
+  // Vault backup/restore removed from UI per request.
 
   // ---------- views ----------
 
@@ -185,7 +135,12 @@ export default function VaultPage({ items, onRefresh, onRestoreSuccess }: VaultP
           Updated {new Date(selectedItem.updatedAt).toLocaleString()}
         </p>
 
-        <p className="detail-content">{selectedItem.data}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <button className="secondary" onClick={() => setShowData((s) => !s)}>{showData ? 'Hide' : 'Show'} content</button>
+          <div className="muted">(Content is blurred for privacy)</div>
+        </div>
+
+        <p className="detail-content" style={{ filter: showData ? 'none' : 'blur(6px)', WebkitFilter: showData ? 'none' : 'blur(6px)' }}>{selectedItem.data}</p>
 
         <div className="card-actions">
           <button className="secondary" onClick={() => openEditForm(selectedItem)}>
@@ -205,23 +160,9 @@ export default function VaultPage({ items, onRefresh, onRestoreSuccess }: VaultP
       <div className="page-header">
         <h1>Vault</h1>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <button className="secondary" onClick={handleBackup}>
-            Backup
-          </button>
-          <button className="secondary" onClick={() => fileInputRef.current?.click()}>
-            Restore
-          </button>
           <button onClick={openNewForm}>+ New note</button>
         </div>
       </div>
-      <input
-        key={restoreInputKey}
-        ref={fileInputRef}
-        type="file"
-        accept="application/json,.json"
-        style={{ display: "none" }}
-        onChange={handleRestoreFile}
-      />
 
       {statusMessage && <p style={{ color: "green" }}>{statusMessage}</p>}
       {errorMessage && <p style={{ color: "crimson" }}>{errorMessage}</p>}
@@ -230,7 +171,7 @@ export default function VaultPage({ items, onRefresh, onRestoreSuccess }: VaultP
         {items.map((item) => (
           <button key={item.id} className="vault-card" onClick={() => openItem(item)}>
             <strong className="vault-card-title">{item.title}</strong>
-            <p className="vault-card-preview">{item.data}</p>
+            <p className="vault-card-preview" style={{ filter: "blur(6px)", WebkitFilter: "blur(6px)" }}>{item.data}</p>
           </button>
         ))}
       </div>
